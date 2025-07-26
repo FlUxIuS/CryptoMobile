@@ -5,28 +5,22 @@ import sys
 
 # Handle the distutils import for Python 3.12
 try:
-    from distutils.ccompiler import get_default_compiler
-    from distutils.command.build import build as dist_build
+    import distutils.ccompiler as dist_ccomp
+    import distutils.command.build as dist_build
     from setuptools import setup, Extension
     from setuptools.command.install import install
     SETUPTOOLS_AVAILABLE = True
 except ImportError:
     # Fallback for Python 3.12 where distutils is removed
-    try:
-        from setuptools import setup, Extension
-        from setuptools.command.install import install
-        from setuptools.command.build_ext import build_ext as dist_build
-        SETUPTOOLS_AVAILABLE = True
-    except ImportError:
-        import subprocess
-        import platform
-        SETUPTOOLS_AVAILABLE = False
-        
-        # Define a minimal Extension class
-        class Extension:
-            def __init__(self, name, sources):
-                self.name = name
-                self.sources = sources
+    import subprocess
+    import platform
+    SETUPTOOLS_AVAILABLE = False
+    
+    # Define a minimal Extension class
+    class Extension:
+        def __init__(self, name, sources):
+            self.name = name
+            self.sources = sources
 
 def rename_files(dirpath, fromsuf, tosuf):
     for fn in os.listdir(dirpath):
@@ -36,14 +30,10 @@ def rename_files(dirpath, fromsuf, tosuf):
 # Determine compiler type
 is_msvc = False
 if SETUPTOOLS_AVAILABLE:
-    try:
-        is_msvc = get_default_compiler() == 'msvc'
-    except:
-        # Fallback if get_default_compiler is not available
-        is_msvc = sys.platform == 'win32'
+    is_msvc = dist_ccomp.get_default_compiler() == 'msvc'
 else:
     # Try to determine compiler without distutils
-    is_msvc = sys.platform == 'win32'
+    is_msvc = platform.system() == 'Windows' and 'msvc' in subprocess.check_output('cc -v', shell=True, text=True, stderr=subprocess.STDOUT).lower()
 
 # Define extensions
 if is_msvc:
@@ -70,30 +60,20 @@ def postop():
         rename_files('./C_alg/', '.cc', '.c')
         rename_files('./C_py/', '.cc', '.c')
 
-# Use setuptools if available
+# Use setuptools if available or invoke gcc directly
 if SETUPTOOLS_AVAILABLE:
-    try:
-        # Try to use distutils build class
-        class build_wrapper(dist_build):
-            def run(self):
-                # on windows: rename *.c to *.cc
-                # on linux: should run OK
-                super().run()
-                postop()
-    except:
-        # Fallback if distutils build is not available
-        from setuptools.command.build_ext import build_ext
-        
-        class build_wrapper(build_ext):
-            def run(self):
-                super().run()
-                postop()
+    class build_wrapper(dist_build.build):
+        def run(self):
+            # on windows: rename *.c to *.cc
+            # on linux: should run OK
+            dist_build.build.run(self)
+            postop()
 
     class install_wrapper(install):
         def run(self):
             # on windows: rename *.c to *.cc
             # on linux: should run OK
-            super().run()
+            install.run(self)
             postop()
             
     # Read README for long description
@@ -106,7 +86,7 @@ if SETUPTOOLS_AVAILABLE:
     setup(
         name='CryptoMobile',
         version='0.3',
-        cmdclass={'install': install_wrapper, 'build_ext': build_wrapper},
+        cmdclass={'install': install_wrapper, 'build': build_wrapper},
         packages=['CryptoMobile'],
         ext_modules=[pycomp128, pykasumi, pysnow, pyzuc, pykeccakp1600],
         test_suite="test.test_CryptoMobile",
