@@ -2,25 +2,15 @@
 
 import os
 import sys
-
-# Handle the distutils import for Python 3.12
-try:
-    import distutils.ccompiler as dist_ccomp
-    import distutils.command.build as dist_build
-    from setuptools import setup, Extension
-    from setuptools.command.install import install
-    SETUPTOOLS_AVAILABLE = True
-except ImportError:
-    # Fallback for Python 3.12 where distutils is removed
-    import subprocess
-    import platform
-    SETUPTOOLS_AVAILABLE = False
+import subprocess
+import platform
+SETUPTOOLS_AVAILABLE = False
     
-    # Define a minimal Extension class
-    class Extension:
-        def __init__(self, name, sources):
-            self.name = name
-            self.sources = sources
+# Define a minimal Extension class
+class Extension:
+    def __init__(self, name, sources):
+        self.name = name
+        self.sources = sources
 
 def rename_files(dirpath, fromsuf, tosuf):
     for fn in os.listdir(dirpath):
